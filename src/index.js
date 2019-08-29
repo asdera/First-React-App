@@ -22,25 +22,36 @@ class Board extends React.Component {
     }
   
     render() {
+      const winner = calculateWinner(this.props.squares);
+      if (winner && winner !== "Draw") {
         return (
-            <div className="board">
-                <div className="board-row">
-                    {this.renderSquare(0)}
-                    {this.renderSquare(1)}
-                    {this.renderSquare(2)}
-                </div>
-                <div className="board-row">
-                    {this.renderSquare(3)}
-                    {this.renderSquare(4)}
-                    {this.renderSquare(5)}
-                </div>
-                <div className="board-row">
-                    {this.renderSquare(6)}
-                    {this.renderSquare(7)}
-                    {this.renderSquare(8)}
-                </div>
-            </div>
+          <div className="board">
+            <button className="megasquare">
+              {winner}
+            </button>
+          </div>
         );
+      } else {
+        return (
+          <div className={this.props.locked ? "board" : "board unlocked"}>
+              <div className="board-row">
+                  {this.renderSquare(0)}
+                  {this.renderSquare(1)}
+                  {this.renderSquare(2)}
+              </div>
+              <div className="board-row">
+                  {this.renderSquare(3)}
+                  {this.renderSquare(4)}
+                  {this.renderSquare(5)}
+              </div>
+              <div className="board-row">
+                  {this.renderSquare(6)}
+                  {this.renderSquare(7)}
+                  {this.renderSquare(8)}
+              </div>
+          </div>
+        );
+      }
     }
 }
 
@@ -50,6 +61,7 @@ class MegaBoard extends React.Component {
       return (
         <Board
           squares={this.props.boards[i]}
+          locked={this.props.lock[i] || this.props.free}
           onClick={(j) => {
             this.props.onClick(i, j)
           }}
@@ -59,7 +71,7 @@ class MegaBoard extends React.Component {
   
     render() {
         return (
-            <div className="megaboard">
+            <div className={this.props.free ? "megaboard unlocked" : "megaboard"}>
                 <div className="megaboard-row">
                     {this.renderBoard(0)}
                     {this.renderBoard(1)}
@@ -102,12 +114,14 @@ class Game extends React.Component {
             });
             return;
         }
+        
         const history = this.state.history.slice(0, this.state.stepNumber + 1);
         const current = history[history.length - 1];
         const boards = current.boards.slice();
         const board = boards[i].slice();
         const lock = current.lock.slice();
-        const winboard = boards.map(board => calculateWinner(board));
+        const winboard = boards.map(b => calculateWinner(b));
+
 
         if (calculateWinner(winboard) || board[j] || winboard[i] || lock[i]) {
           return;
@@ -115,9 +129,23 @@ class Game extends React.Component {
 
         board[j] = this.state.xIsNext ? 'X' : 'O';
         boards[i] = board;
+
+        lock.forEach((b, i) => {
+          lock[i] = true;
+        });
+
+        lock[j] = false;
+
+        if ((calculateWinner(board) && i === j) || winboard[j]) {
+          lock.forEach((b, i) => {
+            lock[i] = false;
+          });
+        }
+
         this.setState({
           history: history.concat([{
-            boards: boards
+            boards: boards,
+            lock: lock,
           }]),
           stepNumber: history.length,
           xIsNext: !this.state.xIsNext,
@@ -129,22 +157,24 @@ class Game extends React.Component {
             stepNumber: step,
             xIsNext: (step % 2) === 0
         });
-        this.handleClick(0, 0, step);
+        // this.handleClick(0, 0, step);
     }
   
     render() {
         // console.log(this.state.stepNumber)
         const history = this.state.history;
         const current = history[this.state.stepNumber];
-        // console.log(current)
-        const winner = null; // calculateWinner(current.squares);
+        const boards = current.boards.slice();
+        const lock = current.lock.slice();
+        const winboard = boards.map(b => calculateWinner(b));
+        const winner = calculateWinner(winboard); // calculateWinner(winboard, true);
         
         const moves = history.map((step, move) => {
             const desc = move ?
               'Go to move #' + move :
               'Go to game start';
             return (
-              <li key={move}>
+              <li key={move} className={move === this.state.stepNumber ? "highlight" : ""}> 
                 <button onClick={() => this.jumpTo(move)}>{desc}</button>
               </li>
             );
@@ -159,24 +189,24 @@ class Game extends React.Component {
     
         return (
           <div className="game">
-            <div className="game-board">
-              <MegaBoard
-                boards={current.boards}
-                onClick={(i, j) => this.handleClick(i, j)}
-              />
-    
-            </div>
             <div className="game-info">
               <div>{status}</div>
-              <ol>{moves}</ol>
+              <ul>{moves}</ul>
+            </div>
+            <div className="game-board">
+              <MegaBoard
+                boards={boards}
+                lock={lock}
+                free={lock.every(x => x===false) || winner}
+                onClick={(i, j) => this.handleClick(i, j)}
+              />
             </div>
           </div>
         );
     }
 }
 
-function calculateWinner(squares) {
-    console.log(squares)
+function calculateWinner(squares, final=false) {
     const lines = [
       [0, 1, 2],
       [3, 4, 5],
@@ -189,11 +219,19 @@ function calculateWinner(squares) {
     ];
     for (let i = 0; i < lines.length; i++) {
       const [a, b, c] = lines[i];
-      if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
+      if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c] && squares[a] !== "Draw") {
         return squares[a];
       }
     }
-    return null;
+
+    return squares.every(x => x) ? (final ? mode(squares) : "Draw") : null;
+}
+
+function mode(arr){
+  return arr.sort((a,b) =>
+        arr.filter(v => v===a).length
+      - arr.filter(v => v===b).length
+  ).pop();
 }
 
 // ========================================
